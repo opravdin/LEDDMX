@@ -20,5 +20,21 @@
       "already_configured": "Устройство уже настроено",
       "no_devices_found": "Устройства не найдены"
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Настройки LEDDMX",
+        "data": {
+          "enable_discovery_notifications": "Показывать уведомления о найденных устройствах"
+        }
+      }
+    }
+  },
+  "notifications": {
+    "device_added": {
+      "title": "✅ Устройство LEDDMX добавлено",
+      "message": "Устройство LEDDMX **{name}** успешно настроено!\n\nДобавленные сущности:\n- {name} (основной свет)\n- {name} Microphone (режим микрофона)\n\nТеперь вы можете управлять LEDDMX."
+    }
   }
 }

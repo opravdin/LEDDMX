@@ -21,21 +21,17 @@ from .patterns import PATTERNS
 
 _LOGGER = logging.getLogger(__name__)
 
-# Создаем эффекты для микрофона (MODE 1 - MODE 255)
 MIC_EFFECTS = [f"MODE {i}" for i in range(1, 256)]
-
-# Убираем "Off" из списка эффектов для основного светильника
 MAIN_EFFECTS = [effect for effect in PATTERNS if effect != "Off"]
+
 
 async def async_setup_entry(hass, entry, async_add_entities):
     """Set up LEDDMX light entities."""
     device = hass.data[DOMAIN][entry.entry_id]
     
-    # Создаем два светильника
     main_light = LEDDMXMainLight(hass, device, entry.data)
     mic_light = LEDDMXMicLight(hass, device, entry.data)
     
-    # Связываем их для координации
     main_light.mic_light = mic_light
     mic_light.main_light = main_light
     
@@ -55,12 +51,12 @@ class LEDDMXMainLight(LightEntity):
         self._is_on = False
         self._color = (255, 255, 255)
         self._brightness = 255
-        self._effect = "Forward Dreaming"  # Дефолтный эффект вместо "Off"
-        self._last_pattern_index = 1  # Индекс для "Forward Dreaming"
+        self._effect = "Forward Dreaming"
+        self._last_pattern_index = 1
         self._ble_client = None
         self._last_brightness = 255
         self._skip_brightness_update = False
-        self.mic_light = None  # Будет установлено после создания
+        self.mic_light = None
 
     @property
     def name(self):
@@ -170,7 +166,7 @@ class LEDDMXMainLight(LightEntity):
 
     async def _set_pattern(self, pattern_index: int, update_effect: bool = True, send_brightness: bool = True):
         """Send pattern command to device."""
-        pattern_index = max(1, min(210, pattern_index))  # Минимум 1, убираем 0 (Off)
+        pattern_index = max(1, min(210, pattern_index))
         self._last_pattern_index = pattern_index
         
         data = bytes([
@@ -191,8 +187,7 @@ class LEDDMXMainLight(LightEntity):
     async def _set_color(self, rgb, send_brightness: bool = True):
         """Set solid color."""
         self._color = rgb
-        # G, B, R - как указано
-        r, g, b = rgb[1], rgb[2], rgb[0]  # G, B, R
+        r, g, b = rgb[1], rgb[2], rgb[0]
         
         data = bytes([
             0x7B, 0xFF, 0x07,
@@ -212,16 +207,13 @@ class LEDDMXMainLight(LightEntity):
 
     async def async_turn_on(self, **kwargs):
         """Turn the light on with selected effect."""
-        # Если микрофон включен, сначала выключаем его
         if self.mic_light and self.mic_light.is_on:
             _LOGGER.debug("Microphone is on, turning it off first")
-            # Принудительно отправляем команду выключения микрофона
             mic_off_data = bytes([
                 0x7B, 0xFF, 0x0B,
-                0x00,  # eq_mode = 0 отключает микрофон
+                0x00,
                 0x00, 0xFF, 0xFF, 0xFF, 0xBF
             ])
-            # Отправляем 2 раза для надежности
             await self._write_ble(mic_off_data)
             await asyncio.sleep(0.1)
             await self._write_ble(mic_off_data)
@@ -231,7 +223,6 @@ class LEDDMXMainLight(LightEntity):
         
         was_off = not self._is_on
         
-        # Если указан эффект, отправляем его
         if ATTR_EFFECT in kwargs:
             effect = kwargs[ATTR_EFFECT]
             
@@ -240,14 +231,11 @@ class LEDDMXMainLight(LightEntity):
             else:
                 pattern_index = self._extract_pattern_number(effect)
             
-            # Включаем устройство (правильная команда из Dmx00Data.kt)
             if was_off:
                 await self._write_ble(bytes([0x7B, 0xFF, 0x04, 0x03, 0xFF, 0xFF, 0xFF, 0xFF, 0xBF]))
             
-            # Устанавливаем эффект
             await self._set_pattern(pattern_index, send_brightness=False)
             
-            # Устанавливаем яркость
             if ATTR_BRIGHTNESS in kwargs:
                 brightness = kwargs[ATTR_BRIGHTNESS]
                 self._brightness = brightness
@@ -259,18 +247,14 @@ class LEDDMXMainLight(LightEntity):
             self.async_write_ha_state()
             return
         
-        # Если указан цвет
         elif ATTR_RGB_COLOR in kwargs:
             rgb = kwargs.get(ATTR_RGB_COLOR, self._color)
             
-            # Включаем устройство
             if was_off:
                 await self._write_ble(bytes([0x7B, 0xFF, 0x04, 0x03, 0xFF, 0xFF, 0xFF, 0xFF, 0xBF]))
             
-            # Устанавливаем цвет
             await self._set_color(rgb, send_brightness=False)
             
-            # Устанавливаем яркость
             if ATTR_BRIGHTNESS in kwargs:
                 brightness = kwargs[ATTR_BRIGHTNESS]
                 self._brightness = brightness
@@ -282,12 +266,10 @@ class LEDDMXMainLight(LightEntity):
             self.async_write_ha_state()
             return
         
-        # Если только яркость
         elif ATTR_BRIGHTNESS in kwargs and ATTR_RGB_COLOR not in kwargs and ATTR_EFFECT not in kwargs:
             brightness = kwargs[ATTR_BRIGHTNESS]
             
             if was_off:
-                # Включаем с последним эффектом
                 await self._write_ble(bytes([0x7B, 0xFF, 0x04, 0x03, 0xFF, 0xFF, 0xFF, 0xFF, 0xBF]))
                 await self._set_pattern(self._last_pattern_index, update_effect=False, send_brightness=False)
             
@@ -298,7 +280,6 @@ class LEDDMXMainLight(LightEntity):
             self.async_write_ha_state()
             return
         
-        # Простое включение - используем последний эффект
         if was_off:
             await self._write_ble(bytes([0x7B, 0xFF, 0x04, 0x03, 0xFF, 0xFF, 0xFF, 0xFF, 0xBF]))
             await self._set_pattern(self._last_pattern_index, update_effect=False, send_brightness=False)
@@ -308,7 +289,6 @@ class LEDDMXMainLight(LightEntity):
 
     async def async_turn_off(self, **kwargs):
         """Turn the light off."""
-        # Правильная команда выключения из Dmx00Data.kt
         data = bytes([0x7B, 0xFF, 0x04, 0x02, 0xFF, 0xFF, 0xFF, 0xFF, 0xBF])
         await self._write_ble(data)
         self._is_on = False
@@ -320,10 +300,10 @@ class LEDDMXMainLight(LightEntity):
             numbers = re.findall(r'\d+', effect_name)
             if numbers:
                 num = int(numbers[0])
-                return max(1, min(210, num))  # Минимум 1
+                return max(1, min(210, num))
         except:
             pass
-        return 1  # Default to first effect
+        return 1
 
     async def async_will_remove_from_hass(self):
         """Clean up when entity is removed."""
@@ -346,10 +326,10 @@ class LEDDMXMicLight(LightEntity):
         self._attr_unique_id = f"{self._address}_mic_light"
         self._attr_name = f"{config.get(CONF_NAME)} Microphone"
         self._is_on = False
-        self._effect = "MODE 1"  # Дефолтный режим
-        self._eq_mode = 1  # Соответствует MODE 1
+        self._effect = "MODE 1"
+        self._eq_mode = 1
         self._ble_client = None
-        self.main_light = None  # Будет установлено после создания
+        self.main_light = None
 
     @property
     def name(self):
@@ -429,29 +409,22 @@ class LEDDMXMicLight(LightEntity):
 
     async def async_turn_on(self, **kwargs):
         """Turn the microphone mode on."""
-        # Если основной свет включен, сначала выключаем его
         if self.main_light and self.main_light.is_on:
             _LOGGER.debug("Main light is on, turning it off first")
-            # Принудительно выключаем основной свет
             await self.main_light.async_turn_off()
-            await asyncio.sleep(0.2)  # Даем устройству время на реакцию
+            await asyncio.sleep(0.2)
         
-        # ВАЖНО: Принудительно сбрасываем состояние устройства
-        # Отправляем команду выключения
         power_off_data = bytes([0x7B, 0xFF, 0x04, 0x02, 0xFF, 0xFF, 0xFF, 0xFF, 0xBF])
         await self._write_ble(power_off_data)
         await asyncio.sleep(0.1)
         
-        # Включаем устройство
         power_on_data = bytes([0x7B, 0xFF, 0x04, 0x03, 0xFF, 0xFF, 0xFF, 0xFF, 0xBF])
         await self._write_ble(power_on_data)
         await asyncio.sleep(0.1)
         
-        # Get effect from kwargs or use current
         if ATTR_EFFECT in kwargs:
             effect = kwargs[ATTR_EFFECT]
             
-            # Извлекаем номер режима из "MODE X"
             try:
                 eq_mode = int(effect.split()[1])
                 eq_mode = max(1, min(255, eq_mode))
@@ -462,8 +435,6 @@ class LEDDMXMicLight(LightEntity):
             eq_mode = self._eq_mode
             effect = self._effect
         
-        # ПРАВИЛЬНАЯ команда микрофона: 9 байт согласно Dmx00Data.kt
-        # 0x7B, 0xFF, 0x0B, eq_mode, 0x00, 0xFF, 0xFF, 0xFF, 0xBF
         data = bytes([
             0x7B, 0xFF, 0x0B,
             eq_mode,
@@ -472,7 +443,6 @@ class LEDDMXMicLight(LightEntity):
         
         _LOGGER.debug("Sending microphone ON command (eq_mode=%d): %s", eq_mode, data.hex())
         
-        # Отправляем команду микрофона 2 раза для надежности
         await self._write_ble(data)
         await asyncio.sleep(0.05)
         await self._write_ble(data)
@@ -485,22 +455,18 @@ class LEDDMXMicLight(LightEntity):
 
     async def async_turn_off(self, **kwargs):
         """Turn the microphone mode off."""
-        # Согласно Dmx00Data.kt: eq_mode = 0 выключает микрофон
-        # 0x7B, 0xFF, 0x0B, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xBF
         data = bytes([
             0x7B, 0xFF, 0x0B,
-            0x00,  # eq_mode = 0 отключает микрофон
+            0x00,
             0x00, 0xFF, 0xFF, 0xFF, 0xBF
         ])
         
         _LOGGER.debug("Sending microphone OFF command: %s", data.hex())
         
-        # Отправляем команду выключения 2 раза для надежности
         await self._write_ble(data)
         await asyncio.sleep(0.05)
         await self._write_ble(data)
         
-        # Также отправляем команду выключения устройства для полного сброса
         power_off_data = bytes([0x7B, 0xFF, 0x04, 0x02, 0xFF, 0xFF, 0xFF, 0xFF, 0xBF])
         await self._write_ble(power_off_data)
         

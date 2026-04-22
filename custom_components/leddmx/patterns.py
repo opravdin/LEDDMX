@@ -1,7 +1,7 @@
 """LEDDMX patterns from PatternList.kt."""
 
 PATTERNS = [
-    "Off",  # Оставляем для внутреннего использования, но не показываем в интерфейсе
+    "Off",
     "Forward Dreaming",
     "Backward Dreaming",
     "Forward 7 Colors",
@@ -214,6 +214,5 @@ PATTERNS = [
     "Close Curtain Swab Y C P",
 ]
 
-# Дополняем до 211 элементов
 while len(PATTERNS) < 211:
     PATTERNS.append(f"Pattern {len(PATTERNS)}")
