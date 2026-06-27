@@ -167,8 +167,8 @@ class LEDDMXMainLight(_LedDmxBLEMixin, LightEntity):
         self._is_on = False
         self._color = (255, 255, 255)
         self._brightness = 255
-        self._effect = "Forward Dreaming"
-        self._last_pattern_index = 1
+        self._effect = "Solid Color"
+        self._last_pattern_index = 0  # 0 = solid colour, >0 = a pattern/animation
         self._ble_client = None
         self._logged_in = False
         self._last_brightness = 255
@@ -271,6 +271,15 @@ class LEDDMXMainLight(_LedDmxBLEMixin, LightEntity):
         self._effect = "Solid Color"
         self._last_pattern_index = 0
 
+    async def _restore_last_state(self):
+        """Re-apply the last visible state after a bare power-on (no colour/effect
+        given). Restores the last solid colour, or a pattern only if one was
+        actually selected — never falls back to an unexpected animation."""
+        if self._last_pattern_index and self._last_pattern_index > 0:
+            await self._set_pattern(self._last_pattern_index, update_effect=False, send_brightness=False)
+        else:
+            await self._set_color(self._color, send_brightness=False)
+
     async def async_turn_on(self, **kwargs):
         """Turn the light on with selected effect."""
         self._resolve_codec()
@@ -333,7 +342,7 @@ class LEDDMXMainLight(_LedDmxBLEMixin, LightEntity):
 
             if was_off:
                 await self._write_ble(self._codec.power(True))
-                await self._set_pattern(self._last_pattern_index, update_effect=False, send_brightness=False)
+                await self._restore_last_state()
 
             self._brightness = brightness
             await self._set_brightness(brightness)
@@ -344,7 +353,7 @@ class LEDDMXMainLight(_LedDmxBLEMixin, LightEntity):
 
         if was_off:
             await self._write_ble(self._codec.power(True))
-            await self._set_pattern(self._last_pattern_index, update_effect=False, send_brightness=False)
+            await self._restore_last_state()
 
         self._is_on = True
         self.async_write_ha_state()
